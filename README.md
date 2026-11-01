@@ -211,16 +211,56 @@ test/        node:test suites
 
 ## How Kiro was used
 
-> **TODO (author):** write this section from real experience — which specs were
-> generated or refined in Kiro, which hooks actually ran, how steering was used,
-> what went well and what did not. Do not add claims or numbers that did not happen.
+The `.kiro/` folder sits at the repository root and is committed on purpose.
+It has three parts.
 
-Note on the `.kiro/` folder: the steering files, the three specs
-(`irc-core`, `web-client`, `ai-ghost`) and the hooks in this repository were
-**drafted outside Kiro** as a starting point, following Kiro's documented
-formats, so they can be opened, refined and executed in Kiro. The agent hook
-`protocol-review-on-save.json` is disabled by default because agent hooks use
-credits.
+### Steering (`.kiro/steering/`)
+
+| File | Inclusion | What it tells Kiro |
+|---|---|---|
+| `product.md` | always | What Seance Relay Chat is and why IRC is the technology being revived |
+| `tech.md` | always | Node.js >= 22.13, strict TypeScript, ESM, `ws` as the only runtime dependency |
+| `structure.md` | always | Where each module lives under `src/` and `web/` |
+| `security.md` | fileMatch (`src/**/*.ts`, `web/**/*.js`, `deploy/**`, ...) | 512-byte line limit, 8 KB WebSocket limit, flood bucket, CR/LF/NUL stripping, `textContent` only |
+
+### Specs (`.kiro/specs/`)
+
+There are three specs: `irc-core`, `web-client` and `ai-ghost`. Each one has
+`requirements.md`, `design.md` and `tasks.md`. When one of these files is
+opened in the Kiro IDE, Kiro shows its spec view with three steps along the top
+(Requirements, Design, Task list), plus **Sync Files** and **Continue** buttons.
+The demo video shows this for `irc-core`.
+
+**Running a spec task:** open the spec's `tasks.md` in Kiro and start an
+unchecked task from there, or open the spec and press **Continue**. Kiro's
+agent then works on that task against the requirements and design. The open
+tasks today are in `irc-core` (for example, "5.1 Optional TLS listener on 6697"
+and "5.2 Channel operators and KICK"). The project folder has to be trusted
+first, because Kiro does not run tasks or hooks in Restricted Mode.
+
+### Hooks (`.kiro/hooks/`)
+
+| Hook | Trigger | Action | Enabled |
+|---|---|---|---|
+| `typecheck-on-save.json` | `PostFileSave` on `*.ts` | runs `npm run typecheck` (60 s timeout) | yes |
+| `run-tests-on-stop.json` | `Stop` (when the agent finishes a turn) | runs `npm test` (120 s timeout) | yes |
+| `protocol-review-on-save.json` | `PostFileSave` on `src/(irc\|core)/*.ts` | agent prompt: check the change against `irc-core/requirements.md` and report any requirement that is no longer met, without editing files | no, because agent hooks use credits |
+
+`run-tests-on-stop` means that every time Kiro's agent stops after making
+changes, the full test suite runs, so a broken protocol path shows up right
+away instead of at deploy time.
+
+### What actually happened (honest log)
+
+- The steering files, the three specs and the hooks were **drafted outside
+  Kiro** as a starting point, following Kiro's documented formats. Each file
+  says so in its first line, and the `irc-core` tasks are checked because that
+  code already existed when the task list was written.
+- The project was then opened in the Kiro IDE (1.4.62, signed in on the Kiro
+  Free plan). Kiro read the specs and showed them in its spec view.
+- At the time of recording, **no spec task had been run and no hook had fired
+  inside Kiro**, because the folder was still in Restricted Mode. This section
+  will be updated with real results once tasks and hooks are run in Kiro.
 
 ## Third-party software and licenses
 
