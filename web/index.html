@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Seance Relay Chat</title>
+  <meta name="description" content="IRC raised from the dead: real IRC protocol, a browser client, and an AI ghost in every channel.">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="crt">
+    <header class="topbar">
+      <span class="logo" aria-hidden="true">&#x2620;</span>
+      <h1>Seance Relay Chat</h1>
+      <span class="tag">IRC est. 1988 &middot; risen 2026</span>
+      <span class="status" id="status">disconnected</span>
+    </header>
+
+    <main class="layout" id="layout" hidden>
+      <nav class="buffers" aria-label="Channels">
+        <h2>channels</h2>
+        <ul id="bufferList"></ul>
+        <form id="joinForm" class="join-form">
+          <input id="joinInput" placeholder="#channel" aria-label="Channel to join" maxlength="50">
+          <button type="submit">join</button>
+        </form>
+        <p class="hint" id="ircHint"></p>
+      </nav>
+
+      <section class="chat" aria-live="polite">
+        <div class="topic" id="topic">&nbsp;</div>
+        <ol class="log" id="log"></ol>
+        <form id="inputForm" class="input-row">
+          <span class="prompt" id="prompt">&gt;</span>
+          <input id="input" autocomplete="off" spellcheck="false" maxlength="400"
+                 placeholder="type a message, /help for commands, or !ask the Ghost" aria-label="Message">
+        </form>
+      </section>
+
+      <aside class="nicks" aria-label="Users">
+        <h2>souls <span id="nickCount"></span></h2>
+        <ul id="nickList"></ul>
+      </aside>
+    </main>
+
+    <section class="login" id="login">
+      <pre class="banner" aria-hidden="true">
+   ___  ___   _   _  _  ___ ___
+  / __|| __| /_\ | \| |/ __| __|
+  \__ \| _| / _ \| .` | (__| _|
+  |___/|___/_/ \_\_|\_|\___|___|
+        relay  chat  ::  rises
+      </pre>
+      <p>A real IRC server, back from the grave. Pick a nickname and step into the circle.</p>
+      <form id="loginForm">
+        <label for="nickInput">nickname</label>
+        <input id="nickInput" maxlength="20" autocomplete="nickname" required>
+        <button type="submit">enter the seance</button>
+      </form>
+      <p class="hint" id="loginHint"></p>
+    </section>
+  </div>
+  <script src="/app.js" type="module"></script>
+</body>
+</html>

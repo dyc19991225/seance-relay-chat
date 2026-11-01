@@ -1,0 +1,6 @@
+# Caddy obtains and renews a TLS certificate for {$DOMAIN} automatically.
+# WebSocket upgrades on /ws are proxied transparently (https -> wss).
+{$DOMAIN} {
+	encode gzip
+	reverse_proxy app:8080
+}

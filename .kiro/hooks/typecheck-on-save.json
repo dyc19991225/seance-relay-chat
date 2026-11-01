@@ -1,0 +1,13 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Type-check TypeScript on save",
+      "trigger": "PostFileSave",
+      "matcher": "\\.ts$",
+      "action": { "type": "command", "command": "npm run typecheck" },
+      "timeout": 60,
+      "enabled": true
+    }
+  ]
+}

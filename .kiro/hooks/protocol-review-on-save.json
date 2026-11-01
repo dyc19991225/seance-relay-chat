@@ -1,0 +1,16 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Review IRC protocol changes against the spec",
+      "trigger": "PostFileSave",
+      "matcher": "src/(irc|core)/.*\\.ts$",
+      "action": {
+        "type": "agent",
+        "prompt": "An IRC protocol file was just changed. Compare the change with .kiro/specs/irc-core/requirements.md. Check that outgoing lines still stay within 512 bytes, CR/LF/NUL are stripped, numerics match RFC 2812, and NOTICE never triggers automatic replies. Report any requirement that is no longer met and suggest a test for it. Do not edit files."
+      },
+      "timeout": 120,
+      "enabled": false
+    }
+  ]
+}

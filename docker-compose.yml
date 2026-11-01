@@ -1,0 +1,39 @@
+# Seance Relay Chat: app + Caddy (automatic HTTPS / WSS).
+# Usage: cp .env.example .env && edit .env && docker compose up -d --build
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DB_PATH: /data/seance.db
+      HTTP_PORT: "8080"
+      IRC_PORT: "6667"
+    ports:
+      # Plain-text IRC for irssi / HexChat / WeeChat. Open TCP 6667 in the firewall.
+      - "6667:6667"
+    expose:
+      - "8080"
+    volumes:
+      - seance-data:/data
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - app
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  seance-data:
+  caddy-data:
+  caddy-config:

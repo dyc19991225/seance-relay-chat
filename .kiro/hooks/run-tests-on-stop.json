@@ -1,0 +1,12 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Run the test suite when the agent stops",
+      "trigger": "Stop",
+      "action": { "type": "command", "command": "npm test" },
+      "timeout": 120,
+      "enabled": true
+    }
+  ]
+}
