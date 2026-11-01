@@ -10,6 +10,8 @@ export interface Channel {
   topicAt: number;
   createdAt: number;
   members: Set<Client>;
+  /** Lower-cased nicks of current channel operators. */
+  ops: Set<string>;
   persistent: boolean;
 }
 
@@ -107,6 +109,7 @@ export class ChatHub extends EventEmitter {
         const ch = this.channels.get(key);
         if (!ch) continue;
         ch.members.delete(client);
+        ch.ops.delete(ircLower(client.nick!));
         this.record(ch.name, client.nick, "quit", reason);
         this.maybeDropChannel(ch);
       }
@@ -147,6 +150,7 @@ export class ChatHub extends EventEmitter {
       case "LIST": return this.onList(client);
       case "WHO": return this.onWho(client, msg);
       case "MODE": return this.onMode(client, msg);
+      case "KICK": return this.onKick(client, msg);
       case "MOTD": return this.sendMotd(client);
       case "QUIT": return this.onQuit(client, msg);
       default:
@@ -221,7 +225,7 @@ export class ChatHub extends EventEmitter {
       "CHANTYPES=#",
       "NICKLEN=20",
       "CHANNELLEN=50",
-      "PREFIX=()",
+      "PREFIX=(o)@",
       "are supported by this server",
     ]);
     this.sendMotd(client);
@@ -257,8 +261,10 @@ export class ChatHub extends EventEmitter {
       }
       const ch = this.ensureChannel(name, false);
       if (ch.members.has(client)) continue;
+      const isCreator = ch.members.size === 0;
       ch.members.add(client);
       client.channels.add(ircLower(ch.name));
+      if (isCreator) ch.ops.add(ircLower(client.nick!));
       const join: IrcMessage = { prefix: this.prefixOf(client), command: "JOIN", params: [ch.name] };
       for (const m of ch.members) m.send(join);
       this.record(ch.name, client.nick!, "join", "");
@@ -291,6 +297,7 @@ export class ChatHub extends EventEmitter {
     const part: IrcMessage = { prefix: this.prefixOf(client), command: "PART", params };
     for (const m of ch.members) m.send(part);
     ch.members.delete(client);
+    ch.ops.delete(ircLower(client.nick!));
     client.channels.delete(ircLower(ch.name));
     this.record(ch.name, client.nick!, "part", reason);
     this.maybeDropChannel(ch);
@@ -377,7 +384,12 @@ export class ChatHub extends EventEmitter {
   }
 
   private sendNames(client: Client, ch: Channel, withEnd = true): void {
-    const nicks = [...ch.members].map((m) => m.nick!).filter(Boolean);
+    const nicks = [...ch.members].map((m) => {
+      const nick = m.nick!;
+      if (!nick) return null;
+      const prefix = ch.ops.has(ircLower(nick)) ? "@" : "";
+      return prefix + nick;
+    }).filter((n): n is string => n !== null);
     // Keep each 353 line comfortably under 512 bytes.
     let batch: string[] = [];
     const flush = () => {
@@ -418,13 +430,78 @@ export class ChatHub extends EventEmitter {
     if (target.startsWith("#")) {
       const ch = this.getChannel(target);
       if (!ch) return this.numeric(client, ERR.NOSUCHCHANNEL, [target, "No such channel"]);
-      if (msg.params.length === 1) this.numeric(client, RPL.CHANNELMODEIS, [ch.name, "+nt"]);
-      // Mode changes are not supported in this minimal server; silently ignored.
+      // Mode query
+      if (msg.params.length === 1) {
+        this.numeric(client, RPL.CHANNELMODEIS, [ch.name, "+nt"]);
+        return;
+      }
+      // Mode change: only +o/-o supported
+      const modeStr = msg.params[1] ?? "";
+      const modeTarget = msg.params[2];
+      if (!modeTarget) {
+        // mode string without target arg is silently ignored for unsupported modes
+        return;
+      }
+      const targetClient = this.getClientByNick(modeTarget);
+      if (!targetClient || !ch.members.has(targetClient)) {
+        this.numeric(client, ERR.USERNOTINCHANNEL, [modeTarget, ch.name, "They aren't on that channel"]);
+        return;
+      }
+      const isOp = ch.ops.has(ircLower(client.nick!));
+      if (!isOp) {
+        this.numeric(client, ERR.CHANOPRIVSNEEDED, [ch.name, "You're not channel operator"]);
+        return;
+      }
+      // Parse mode flags
+      let adding = true;
+      for (const ch2 of modeStr) {
+        if (ch2 === "+") { adding = true; continue; }
+        if (ch2 === "-") { adding = false; continue; }
+        if (ch2 === "o") {
+          if (adding) ch.ops.add(ircLower(modeTarget));
+          else ch.ops.delete(ircLower(modeTarget));
+          const mode: IrcMessage = {
+            prefix: this.prefixOf(client),
+            command: "MODE",
+            params: [ch.name, (adding ? "+" : "-") + "o", targetClient.nick!],
+          };
+          for (const m of ch.members) m.send(mode);
+        }
+        // Unsupported mode letters are silently ignored.
+      }
       return;
     }
     if (client.nick && ircLower(target) === ircLower(client.nick)) {
       this.numeric(client, RPL.UMODEIS, ["+i"]);
     }
+  }
+
+  private onKick(client: Client, msg: IrcMessage): void {
+    const chanName = msg.params[0];
+    const targetNick = msg.params[1];
+    const reason = msg.params[2] ?? client.nick ?? "Kicked";
+    if (!chanName || !targetNick) {
+      return this.numeric(client, ERR.NEEDMOREPARAMS, ["KICK", "Not enough parameters"]);
+    }
+    const ch = this.getChannel(chanName);
+    if (!ch) return this.numeric(client, ERR.NOSUCHCHANNEL, [chanName, "No such channel"]);
+    if (!ch.members.has(client)) {
+      return this.numeric(client, ERR.NOTONCHANNEL, [ch.name, "You're not on that channel"]);
+    }
+    if (!ch.ops.has(ircLower(client.nick!))) {
+      return this.numeric(client, ERR.CHANOPRIVSNEEDED, [ch.name, "You're not channel operator"]);
+    }
+    const target = this.getClientByNick(targetNick);
+    if (!target || !ch.members.has(target)) {
+      return this.numeric(client, ERR.USERNOTINCHANNEL, [targetNick, ch.name, "They aren't on that channel"]);
+    }
+    // Broadcast KICK to all members (including the kicked user) before removal.
+    const kick: IrcMessage = { prefix: this.prefixOf(client), command: "KICK", params: [ch.name, target.nick!, reason] };
+    for (const m of ch.members) m.send(kick);
+    ch.members.delete(target);
+    ch.ops.delete(ircLower(target.nick!));
+    target.channels.delete(ircLower(ch.name));
+    this.maybeDropChannel(ch);
   }
 
   private onQuit(client: Client, msg: IrcMessage): void {
@@ -440,7 +517,7 @@ export class ChatHub extends EventEmitter {
     const key = ircLower(name);
     let ch = this.channels.get(key);
     if (!ch) {
-      ch = { name, topic: "", topicBy: "", topicAt: 0, createdAt: Date.now(), members: new Set(), persistent };
+      ch = { name, topic: "", topicBy: "", topicAt: 0, createdAt: Date.now(), members: new Set(), ops: new Set(), persistent };
       this.channels.set(key, ch);
     }
     if (persistent) ch.persistent = true;

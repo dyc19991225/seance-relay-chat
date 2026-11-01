@@ -233,9 +233,9 @@ The demo video shows this for `irc-core`.
 
 **Running a spec task:** open the spec's `tasks.md` in Kiro and start an
 unchecked task from there, or open the spec and press **Continue**. Kiro's
-agent then works on that task against the requirements and design. The open
-tasks today are in `irc-core` (for example, "5.1 Optional TLS listener on 6697"
-and "5.2 Channel operators and KICK"). The project folder has to be trusted
+agent then works on that task against the requirements and design. The open task
+today is "5.1 Optional TLS listener on 6697" in `irc-core`; 5.2 was run in Kiro
+(see below). The project folder has to be trusted
 first, because Kiro does not run tasks or hooks in Restricted Mode.
 
 ### Hooks (`.kiro/hooks/`)
@@ -246,21 +246,34 @@ first, because Kiro does not run tasks or hooks in Restricted Mode.
 | `run-tests-on-stop.json` | `Stop` (when the agent finishes a turn) | runs `npm test` (120 s timeout) | yes |
 | `protocol-review-on-save.json` | `PostFileSave` on `src/(irc\|core)/*.ts` | agent prompt: check the change against `irc-core/requirements.md` and report any requirement that is no longer met, without editing files | no, because agent hooks use credits |
 
-`run-tests-on-stop` means that every time Kiro's agent stops after making
-changes, the full test suite runs, so a broken protocol path shows up right
+`run-tests-on-stop` is meant to run the full test suite every time Kiro's agent stops after making
+changes, so a broken protocol path shows up right
 away instead of at deploy time.
 
 ### What actually happened (honest log)
 
 - The steering files, the three specs and the hooks were **drafted outside
   Kiro** as a starting point, following Kiro's documented formats. Each file
-  says so in its first line, and the `irc-core` tasks are checked because that
-  code already existed when the task list was written.
+  says so in its first line, and tasks 1 to 4 of `irc-core` are checked because
+  that code already existed when the task list was written.
 - The project was then opened in the Kiro IDE (1.4.62, signed in on the Kiro
-  Free plan). Kiro read the specs and showed them in its spec view.
-- At the time of recording, **no spec task had been run and no hook had fired
-  inside Kiro**, because the folder was still in Restricted Mode. This section
-  will be updated with real results once tasks and hooks are run in Kiro.
+  Free plan) and the folder was trusted, which turns off Restricted Mode.
+- **Task 5.2 "Channel operators and KICK" was run in Kiro** from the "Start
+  task" link in `tasks.md`. Kiro's spec-task agent worked for about 3 minutes
+  and changed `src/core/hub.ts`, `src/irc/numerics.ts` and `test/hub.test.ts`:
+  - the first user to join an empty channel becomes an operator;
+  - NAMES shows operators with `@`, and ISUPPORT advertises `PREFIX=(o)@`;
+  - `MODE #chan +o/-o nick` grants or removes operator status;
+  - `KICK` checks for errors 403, 442, 482 and 441.
+  It added 10 tests and updated one existing test whose expected NAMES output
+  changed. It ran `npm test` itself (approved by us): **51 tests, 51 pass,
+  0 fail**. Kiro then marked 5.2 as done and wrote `tasks.meta.json`. Kiro's
+  chat showed an estimate of 3.8 credits for the run.
+- **Hooks:** Kiro's log shows the three hooks loaded, but we saw no sign that
+  `run-tests-on-stop` fired when the agent stopped, so we do not claim it ran.
+  Hooks before the folder was trusted were blocked
+  (`executionDisabledUntrustedWorkspace`).
+- Task 5.1 (TLS on 6697) has not been run.
 
 ## Third-party software and licenses
 

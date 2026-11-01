@@ -24,4 +24,4 @@
   - _Requirements: 5.1–5.6_
 - [ ] 5. Follow-ups (not implemented)
   - [ ] 5.1 Optional TLS listener on 6697
-  - [ ] 5.2 Channel operators and KICK
+  - [x] 5.2 Channel operators and KICK
