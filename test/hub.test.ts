@@ -123,6 +123,38 @@ test("NICK change is broadcast to channel peers", () => {
   assert.equal(hub.getClientByNick("banshee"), a);
 });
 
+test("operator rename preserves privileges without giving the old nick those privileges", () => {
+  const { hub } = makeHub();
+  const owner = connect(hub, "alice");
+  const member = connect(hub, "bob");
+  line(hub, owner, "JOIN #rename-one,#rename-two");
+  line(hub, member, "JOIN #rename-one,#rename-two");
+  line(hub, owner, "NICK alicia");
+  for (const name of ["#rename-one", "#rename-two"]) {
+    assert.ok(hub.getChannel(name)!.ops.has("alicia"));
+    assert.equal(hub.getChannel(name)!.ops.has("alice"), false);
+  }
+  line(hub, member, "NICK alice");
+  member.take();
+  line(hub, member, "KICK #rename-one alicia :attempted takeover");
+  assert.equal(member.take().at(-1)?.command, "482");
+  assert.ok(hub.getChannel("#rename-one")!.members.has(owner));
+  line(hub, owner, "KICK #rename-one alice :still operator");
+  assert.equal(hub.getChannel("#rename-one")!.members.has(member), false);
+});
+
+test("case-only operator rename preserves privileges and cleans up on part", () => {
+  const { hub } = makeHub();
+  const owner = connect(hub, "Alice");
+  line(hub, owner, "JOIN #case-rename");
+  line(hub, owner, "NICK ALICE");
+  assert.ok(hub.getChannel("#case-rename")!.ops.has("alice"));
+  const member = connect(hub, "bob");
+  line(hub, member, "JOIN #case-rename");
+  line(hub, owner, "PART #case-rename");
+  assert.equal(hub.getChannel("#case-rename")!.ops.size, 0);
+});
+
 test("missing params give 461 / 411 / 412, unknown command 421", () => {
   const { hub } = makeHub();
   const a = connect(hub, "alice");

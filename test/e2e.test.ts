@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import http from "node:http";
 import { startApp } from "../src/app.js";
 import { loadConfig } from "../src/config.js";
 import { runScenario } from "../scripts/smoke-lib.js";
@@ -36,4 +37,25 @@ test("config picks the mock provider when no key is set", () => {
   assert.equal(blank.ai.model, "gpt-4o-mini");
   assert.equal(blank.ghost.nick, "Ghost");
   assert.equal(blank.ircPort, 6667);
+});
+
+test("malformed WebSocket upgrade URLs are rejected without stopping the app", async () => {
+  const app = await startApp(loadConfig({
+    IRC_HOST: "127.0.0.1", IRC_PORT: "0", HTTP_HOST: "127.0.0.1", HTTP_PORT: "0",
+    DB_PATH: ":memory:", AI_PROVIDER: "mock", GHOST_ENABLED: "false",
+  }));
+  try {
+    const status = await new Promise<number>((resolve, reject) => {
+      const req = http.get({
+        host: "127.0.0.1", port: app.httpPort, path: "http://[", agent: false,
+        headers: { Connection: "Upgrade", Upgrade: "websocket" },
+      }, response => { response.resume(); resolve(response.statusCode!); });
+      req.on("error", reject);
+      req.setTimeout(2000, () => req.destroy(new Error("Upgrade fixture timed out")));
+    });
+    assert.equal(status, 400);
+    assert.equal((await fetch(`http://127.0.0.1:${app.httpPort}/healthz`)).status, 200);
+  } finally {
+    await app.stop();
+  }
 });

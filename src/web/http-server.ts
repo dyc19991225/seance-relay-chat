@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import http from "node:http";
-import { extname, join, normalize, resolve } from "node:path";
+import { extname, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
 import type { ChatHub } from "../core/hub.js";
 
 const MIME: Record<string, string> = {
@@ -22,13 +22,27 @@ export interface HttpInfo {
 export function createHttpServer(hub: ChatHub, webRoot: string, info: HttpInfo): http.Server {
   const root = resolve(webRoot);
   return http.createServer(async (req, res) => {
-    const url = new URL(req.url ?? "/", "http://localhost");
     const security = {
       "x-content-type-options": "nosniff",
       "referrer-policy": "no-referrer",
       "content-security-policy":
         "default-src 'self'; connect-src 'self' ws: wss:; img-src 'self' data:; style-src 'self'; script-src 'self'; frame-ancestors 'none'",
     };
+    let url: URL;
+    let pathname: string;
+    try {
+      url = new URL(req.url ?? "/", "http://localhost");
+      pathname = decodeURIComponent(url.pathname);
+    } catch {
+      res.writeHead(400, { "content-type": "text/plain", ...security });
+      res.end("Bad request");
+      return;
+    }
+    if (pathname.includes("\0")) {
+      res.writeHead(400, security);
+      res.end();
+      return;
+    }
     if (url.pathname === "/healthz") {
       res.writeHead(200, { "content-type": "application/json", ...security });
       res.end(JSON.stringify({ ok: true, clients: hub.clientCount() }));
@@ -52,9 +66,10 @@ export function createHttpServer(hub: ChatHub, webRoot: string, info: HttpInfo):
       res.end();
       return;
     }
-    const rel = url.pathname === "/" ? "/index.html" : url.pathname;
-    const file = normalize(join(root, decodeURIComponent(rel)));
-    if (!file.startsWith(root)) {
+    const rel = pathname === "/" ? "/index.html" : pathname;
+    const file = normalize(join(root, rel));
+    const withinRoot = relative(root, file);
+    if (withinRoot === ".." || withinRoot.startsWith(".." + sep) || isAbsolute(withinRoot)) {
       res.writeHead(403, security);
       res.end();
       return;

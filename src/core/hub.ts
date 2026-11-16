@@ -192,7 +192,11 @@ export class ChatHub extends EventEmitter {
       for (const c of audience) c.send(change);
       for (const chKey of client.channels) {
         const ch = this.channels.get(chKey);
-        if (ch) this.record(ch.name, old, "nick", wanted);
+        if (ch) {
+          // Privileges follow the connection when its nickname changes.
+          if (ch.ops.delete(ircLower(old))) ch.ops.add(key);
+          this.record(ch.name, old, "nick", wanted);
+        }
       }
       return;
     }

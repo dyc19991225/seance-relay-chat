@@ -26,6 +26,7 @@ export type WsEvent =
   | { type: "message"; from: string; target: string; text: string; notice: boolean; action: boolean; ts: number }
   | { type: "join"; nick: string; channel: string; ts: number }
   | { type: "part"; nick: string; channel: string; reason: string; ts: number }
+  | { type: "kick"; nick: string; channel: string; by: string; reason: string; ts: number }
   | { type: "quit"; nick: string; reason: string; ts: number }
   | { type: "nick"; from: string; to: string; ts: number }
   | { type: "topic"; channel: string; topic: string; by?: string; ts: number }
@@ -110,6 +111,7 @@ export class IrcToWs {
       }
       case "JOIN": return { type: "join", nick: nickOf(msg.prefix), channel: p[0] ?? "", ts: now };
       case "PART": return { type: "part", nick: nickOf(msg.prefix), channel: p[0] ?? "", reason: p[1] ?? "", ts: now };
+      case "KICK": return { type: "kick", nick: p[1] ?? "", channel: p[0] ?? "", by: nickOf(msg.prefix), reason: p[2] ?? "", ts: now };
       case "QUIT": return { type: "quit", nick: nickOf(msg.prefix), reason: p[0] ?? "", ts: now };
       case "NICK": return { type: "nick", from: nickOf(msg.prefix), to: p[0] ?? "", ts: now };
       case "TOPIC": return { type: "topic", channel: p[0] ?? "", topic: p[1] ?? "", by: nickOf(msg.prefix), ts: now };

@@ -152,6 +152,29 @@ function handle(ev) {
       for (const b of state.buffers.values()) if (b.nicks.delete(ev.nick)) sys(b.name, `<-- ${ev.nick} left this world (${ev.reason})`);
       renderNicks();
       break;
+    case "kick": {
+      const key = lower(ev.channel);
+      const b = state.buffers.get(key);
+      if (!b) break;
+      const text = `${ev.by} kicked ${ev.nick} from ${ev.channel}${ev.reason ? ` (${ev.reason})` : ""}`;
+      if (state.nick && lower(ev.nick) === lower(state.nick)) {
+        state.buffers.delete(key);
+        if (state.active === b) {
+          setActive(state.buffers.size ? [...state.buffers.values()].pop().name : SERVER);
+        } else {
+          renderBuffers();
+        }
+        sys(SERVER, text, "sys err");
+      } else {
+        // NAMES can include the operator prefix; KICK carries a bare nick.
+        for (const nick of b.nicks) {
+          if (lower(nick.replace(/^[@+]/, "")) === lower(ev.nick)) b.nicks.delete(nick);
+        }
+        sys(b.name, text);
+        if (state.active === b) renderNicks();
+      }
+      break;
+    }
     case "nick":
       if (ev.from === state.nick) state.nick = ev.to;
       for (const b of state.buffers.values()) if (b.nicks.delete(ev.from)) { b.nicks.add(ev.to); sys(b.name, `${ev.from} is now known as ${ev.to}`); }

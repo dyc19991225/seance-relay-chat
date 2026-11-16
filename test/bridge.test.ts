@@ -28,6 +28,14 @@ test("parseWsCommand rejects junk", () => {
   assert.equal(parseWsCommand('{"type":"list"}').type, "list");
 });
 
+test("IrcToWs preserves the channel, target and actor of a KICK", () => {
+  assert.deepEqual(new IrcToWs().translate({
+    prefix: "operator!~op@host", command: "KICK", params: ["#a", "member", "reason"],
+  }, 123), {
+    type: "kick", channel: "#a", nick: "member", by: "operator", reason: "reason", ts: 123,
+  });
+});
+
 test("IrcToWs maps messages, actions and accumulates NAMES", () => {
   const t = new IrcToWs();
   const ev = t.translate({ prefix: "bob!~b@h", command: "PRIVMSG", params: ["#a", "\x01ACTION howls\x01"] }, 1);

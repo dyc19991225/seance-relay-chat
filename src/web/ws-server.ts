@@ -47,7 +47,14 @@ export function attachWebSocket(server: http.Server, hub: ChatHub, opts: WsOptio
   const wss = new WebSocketServer({ noServer: true, maxPayload: 8 * 1024 });
 
   server.on("upgrade", (req, socket, head) => {
-    const url = new URL(req.url ?? "/", "http://localhost");
+    let url: URL;
+    try {
+      url = new URL(req.url ?? "/", "http://localhost");
+    } catch {
+      socket.write("HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n");
+      socket.destroy();
+      return;
+    }
     if (url.pathname !== opts.path) {
       socket.destroy();
       return;
